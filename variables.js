@@ -35,6 +35,6 @@
 // console.log(num1);
 // num1=10
 
-"use strict"
-a=89;
-console.log(a);
+// "use strict"
+// a=89;
+// console.log(a);
