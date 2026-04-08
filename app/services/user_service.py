@@ -58,6 +58,9 @@ class UserService:
                             user = db.query(User).filter(User.id == user_id).first()
                             if not user:
                                 return None
+                            else:
+                                upsert_redis_cache_for_user(user)
+                                return user
                     # if list
                     if isinstance(data, list):
                         for item in data:
@@ -68,6 +71,9 @@ class UserService:
                                 user = db.query(User).filter(User.id == user_id).first()
                                 if not user:
                                     return None
+                                else:
+                                    upsert_redis_cache_for_user(user)
+                                    return user
                 except Exception:
                     # fall through to DB on parse error
                     pass
@@ -129,3 +135,27 @@ class UserService:
     def set_users_in_redis_cache(redis_client: redis.Redis, users: list[UserResponse]):
         redis_client.set("users", b",".join(user.json().encode() for user in users))
 
+    """
+    Cache-Aside (lazy loading)
+
+    App checks cache first. On miss, read DB, populate cache, return value. Writes update DB then invalidate or update cache.
+    Good for read-heavy workloads, simple.
+    """
+    upsert_redis_cache_for_user(user:User):
+        """Upsert a single user in Redis cache"""               
+        # 1. Get the existing byte string
+        existing_data = redis_client.get("users")
+
+        # 2. Prepare the new user's data
+        new_user_bytes = user.json().encode()
+
+        if existing_data:
+            # 3. Append the new user with a comma separator
+            # We concatenate bytes: existing + b"," + new
+            updated_data = existing_data + b"," + new_user_bytes
+        else:
+            # If the cache was empty, the new user is the only data
+            updated_data = new_user_bytes
+
+        # 4. Save back to Redis
+        redis_client.set("users", updated_data)
